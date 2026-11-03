@@ -19,6 +19,7 @@ import java.util.concurrent.atomic.AtomicLong;
 @Service
 public class CambioService {
     private static final int ESCALA_MONETARIA = 2;
+    private static final RoundingMode REDONDEO_MONETARIO = RoundingMode.HALF_UP;
 
     private final TipoCambioRepository tipoCambioRepository;
     private final CotizacionRepository cotizacionRepository;
@@ -43,17 +44,12 @@ public class CambioService {
     }
 
     public Cotizacion cotizar(Moneda moneda, Operacion operacion, BigDecimal monto) {
-        if (monto == null || monto.signum() <= 0) {
-            throw new IllegalArgumentException("El monto debe ser mayor que cero");
-        }
-
         TipoCambio tipoCambio = obtenerTipoCambio(moneda);
         BigDecimal tasaAplicada = operacion == Operacion.COMPRA
                 ? tipoCambio.venta()
                 : tipoCambio.compra();
-        BigDecimal montoMoneda = monto.setScale(ESCALA_MONETARIA, RoundingMode.HALF_UP);
-        BigDecimal montoSoles = montoMoneda.multiply(tasaAplicada)
-                .setScale(ESCALA_MONETARIA, RoundingMode.HALF_UP);
+        BigDecimal montoSoles = tipoCambio.convertir(monto, operacion);
+        BigDecimal montoMoneda = monto.setScale(ESCALA_MONETARIA, REDONDEO_MONETARIO);
 
         Cotizacion cotizacion = new Cotizacion(
                 "C-" + String.format(Locale.ROOT, "%04d", secuenciaCotizaciones.incrementAndGet()),
