@@ -1,3 +1,68 @@
-name: CI/CD
+name: cicd pipeline
 
-# TODO RN-4: configurar el workflow de entrega continua y versionado.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Verify
+        run: mvn -B -ntp verify
+      - name: Upload application jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: cambioexpress-jar
+          path: target/cambioexpress-*.jar
+
+  deploy-dev:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Download application jar
+        uses: actions/download-artifact@v4
+        with:
+          name: cambioexpress-jar
+          path: dist
+      - name: Deploy to dev
+        run: bash devops/desplegar.sh dev dist/cambioexpress-*.jar
+        env:
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+
+  deploy-cert:
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: cert
+    if: github.ref == 'refs/heads/master'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Download application jar
+        uses: actions/download-artifact@v4
+        with:
+          name: cambioexpress-jar
+          path: dist
+      - name: Deploy to cert
+        run: bash devops/desplegar.sh cert dist/cambioexpress-*.jar
+        env:
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
